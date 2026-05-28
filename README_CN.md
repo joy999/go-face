@@ -345,27 +345,88 @@ for i := 0; i < count; i++ {
 - **`third_party/inspireface/include/` 下的 C 头文件** 默认不会被 vendor。我们在 v1.0.3+ 中通过将头文件目录转为占位 Go 包的方式修复了此问题，确保它们能被正确 vendor。
 - **`third_party/inspireface/lib/` 下的 `.so` / `.dylib` 文件** 由于每个都有数 MB，**永远不会**被 vendor 复制。
 
-如果你使用 `go mod vendor`，请在 vendor 之后运行辅助工具来下载原生库：
+### 自动安装（推荐）
+
+执行完 `go mod vendor` 后，运行辅助工具自动下载并解压原生库：
 
 ```bash
 # 若启用了 vendor/，需加 -mod=mod 才能从网络获取该工具
 #（或者直接从本地 go-face 仓库运行）
 go run -mod=mod github.com/joy999/go-face/cmd/install-libs
 
-# 如果你已有本地 clone：
+# 从本地 clone 运行：
 go run /path/to/go-face/cmd/install-libs
 ```
 
 该工具会自动检测 `go-face` 是位于你的 `vendor/` 目录中还是在模块缓存里，并将 `lib.tar.gz` 解压到正确的 `third_party/inspireface/lib/` 位置。
 
-如果你希望将库安装到系统路径（方便所有构建共用），可使用：
+如需安装到系统路径（方便所有构建共用）：
 
 ```bash
 go run github.com/joy999/go-face/cmd/install-libs -system
 sudo ldconfig   # Linux 上需要执行
 ```
 
-> **注意：** 如果你处于防火墙内或无法访问 GitHub，请手动下载 [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz) 并解压到 `third_party/inspireface/lib/`（`-system` 模式则解压到 `/usr/local/lib`）。
+### 手工部署
+
+如果你处于防火墙内或希望完全手动控制，可一次性下载 [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz)，然后自行放置库文件。
+
+**A. Vendor 模式 — 放到 `vendor/github.com/joy999/go-face/` 内**
+
+```bash
+# 1. 找到 go-face 在 vendor 中的目录
+PKG_DIR=$(go list -f '{{.Dir}}' github.com/joy999/go-face)
+echo $PKG_DIR
+# → /your/project/vendor/github.com/joy999/go-face
+
+# 2. 将 lib.tar.gz 解压到该包的 third_party 目录下
+mkdir -p "$PKG_DIR/third_party/inspireface/lib"
+tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
+```
+
+**B. Module-cache 模式 — 放到 `$GOMODCACHE` 中**
+
+```bash
+# 1. 找到 go-face 在模块缓存中的目录
+PKG_DIR=$(go list -f '{{.Dir}}' github.com/joy999/go-face)
+echo $PKG_DIR
+# → /home/user/go/pkg/mod/github.com/joy999/go-face@v1.0.3
+
+# 2. 将 lib.tar.gz 解压到同一位置
+tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
+```
+
+**C. 系统路径安装 — 放到 `/usr/local/lib`（Linux）或 `/usr/lib`**
+
+只拷贝当前平台需要的库文件即可：
+
+| 平台 | 需拷贝的文件 |
+|----------|---------------|
+| macOS (arm64) | `darwin_arm64/libInspireFace.dylib` → `/usr/local/lib/` |
+| Linux x86 (amd64) | `linux_x86/libInspireFace.so` → `/usr/local/lib/` |
+| Linux aarch64 / RK3588 | `linux_aarch64_rk3588/libInspireFace.so` + `linux_aarch64_rk3588/librknnrt.so` → `/usr/local/lib/` |
+
+拷贝完成后刷新动态链接器缓存：
+
+```bash
+sudo ldconfig
+```
+
+CGO 中已添加的 `-L/usr/local/lib` 兜底路径（v1.0.3+）会自动找到这些库。
+
+**D. 从本地 `replace` 的 clone 中复制**
+
+如果你使用了 `replace github.com/joy999/go-face => /path/to/local/go-face`，本地仓库中的 `.so` 文件已经是真实内容（不是 LFS 指针），可直接复制：
+
+```bash
+# 复制到项目 vendor 目录
+cp -r /path/to/local/go-face/third_party/inspireface/lib/* \
+      ./vendor/github.com/joy999/go-face/third_party/inspireface/lib/
+
+# 或者安装到系统路径
+cp /path/to/local/go-face/third_party/inspireface/lib/linux_aarch64_rk3588/*.so /usr/local/lib/
+sudo ldconfig
+```
 
 ## 性能优化
 

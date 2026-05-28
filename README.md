@@ -345,27 +345,88 @@ for i := 0; i < count; i++ {
 - **C headers** under `third_party/inspireface/include/` are omitted by default. We fixed this by turning the header directories into placeholder Go packages so they are vendored correctly (v1.0.3+).
 - **`.so` / `.dylib` files** under `third_party/inspireface/lib/` are **never** vendored because they are several megabytes each.
 
-If you use `go mod vendor`, run the helper after vendoring to download the native libraries:
+### Automatic installation (recommended)
+
+After `go mod vendor`, run the helper tool to download and extract the native libraries:
 
 ```bash
-# If you have vendor/ enabled, use -mod=mod so the tool can be fetched
-# (or run from a local clone of go-face)
+# If vendor/ is enabled, use -mod=mod so the tool can be fetched from the network
+# (or run directly from a local clone of go-face)
 go run -mod=mod github.com/joy999/go-face/cmd/install-libs
 
-# If you already have a local clone:
+# From a local clone:
 go run /path/to/go-face/cmd/install-libs
 ```
 
-The tool automatically detects whether `go-face` lives in your `vendor/` directory or in the module cache, and extracts `lib.tar.gz` to the correct `third_party/inspireface/lib/` location.
+The tool detects whether `go-face` lives in your `vendor/` directory or in the module cache, and extracts `lib.tar.gz` to the correct `third_party/inspireface/lib/` location.
 
-If you prefer a system-wide installation (so the libraries are available for all builds), use:
+For a system-wide installation (available to all builds):
 
 ```bash
 go run github.com/joy999/go-face/cmd/install-libs -system
 sudo ldconfig   # on Linux
 ```
 
-> **Note:** If you are behind a firewall or GitHub is unreachable, download [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz) manually and extract it to `third_party/inspireface/lib/` (or `/usr/local/lib` for `-system`).
+### Manual deployment
+
+If you are behind a firewall or prefer full manual control, download [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz) once and place the libraries yourself.
+
+**A. Vendor mode — place inside `vendor/github.com/joy999/go-face/`**
+
+```bash
+# 1. Find the vendored package directory
+PKG_DIR=$(go list -f '{{.Dir}}' github.com/joy999/go-face)
+echo $PKG_DIR
+# → /your/project/vendor/github.com/joy999/go-face
+
+# 2. Extract lib.tar.gz into the package's third_party directory
+mkdir -p "$PKG_DIR/third_party/inspireface/lib"
+tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
+```
+
+**B. Module-cache mode — place inside `$GOMODCACHE`**
+
+```bash
+# 1. Find the module-cache directory for go-face
+PKG_DIR=$(go list -f '{{.Dir}}' github.com/joy999/go-face)
+echo $PKG_DIR
+# → /home/user/go/pkg/mod/github.com/joy999/go-face@v1.0.3
+
+# 2. Extract lib.tar.gz into the same location
+tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
+```
+
+**C. System-wide installation — place in `/usr/local/lib` (Linux) or `/usr/lib`**
+
+Copy only the libraries for your current platform:
+
+| Platform | Files to copy |
+|----------|---------------|
+| macOS (arm64) | `darwin_arm64/libInspireFace.dylib` → `/usr/local/lib/` |
+| Linux x86 (amd64) | `linux_x86/libInspireFace.so` → `/usr/local/lib/` |
+| Linux aarch64 / RK3588 | `linux_aarch64_rk3588/libInspireFace.so` + `linux_aarch64_rk3588/librknnrt.so` → `/usr/local/lib/` |
+
+After copying, refresh the linker cache:
+
+```bash
+sudo ldconfig
+```
+
+Then the CGO `-L/usr/local/lib` fallback (already added in v1.0.3+) will pick them up automatically.
+
+**D. From a local `replace` clone**
+
+If you use `replace github.com/joy999/go-face => /path/to/local/go-face`, the local clone already contains the real `.so` files (not LFS pointers). You can simply copy them:
+
+```bash
+# Copy into your project's vendor directory
+cp -r /path/to/local/go-face/third_party/inspireface/lib/* \
+      ./vendor/github.com/joy999/go-face/third_party/inspireface/lib/
+
+# Or install to system paths
+cp /path/to/local/go-face/third_party/inspireface/lib/linux_aarch64_rk3588/*.so /usr/local/lib/
+sudo ldconfig
+```
 
 ## Performance Tips
 
