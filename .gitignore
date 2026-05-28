@@ -1,0 +1,14 @@
+# Binaries
+simple
+lowlevel
+*.exe
+
+# Test artifacts
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+
+
