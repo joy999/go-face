@@ -338,6 +338,35 @@ for i := 0; i < count; i++ {
 | `FormatI420`| YUV I420 | 视频编解码器 |
 | `FormatGRAY`| 单通道 | 红外 / 深度相机 |
 
+## Vendor 模式与原生库
+
+`go mod vendor` **不会**复制没有 `.go` 文件的目录，并且会跳过超过 1 MB 的文件。这会导致以下问题：
+
+- **`third_party/inspireface/include/` 下的 C 头文件** 默认不会被 vendor。我们在 v1.0.3+ 中通过将头文件目录转为占位 Go 包的方式修复了此问题，确保它们能被正确 vendor。
+- **`third_party/inspireface/lib/` 下的 `.so` / `.dylib` 文件** 由于每个都有数 MB，**永远不会**被 vendor 复制。
+
+如果你使用 `go mod vendor`，请在 vendor 之后运行辅助工具来下载原生库：
+
+```bash
+# 若启用了 vendor/，需加 -mod=mod 才能从网络获取该工具
+#（或者直接从本地 go-face 仓库运行）
+go run -mod=mod github.com/joy999/go-face/cmd/install-libs
+
+# 如果你已有本地 clone：
+go run /path/to/go-face/cmd/install-libs
+```
+
+该工具会自动检测 `go-face` 是位于你的 `vendor/` 目录中还是在模块缓存里，并将 `lib.tar.gz` 解压到正确的 `third_party/inspireface/lib/` 位置。
+
+如果你希望将库安装到系统路径（方便所有构建共用），可使用：
+
+```bash
+go run github.com/joy999/go-face/cmd/install-libs -system
+sudo ldconfig   # Linux 上需要执行
+```
+
+> **注意：** 如果你处于防火墙内或无法访问 GitHub，请手动下载 [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz) 并解压到 `third_party/inspireface/lib/`（`-system` 模式则解压到 `/usr/local/lib`）。
+
 ## 性能优化
 
 - **复用 Session**。`Session` 内部分配了缓存和 GPU/NPU 内存。建议每个 goroutine 持有一个 Session，或使用对象池；不要每个请求都创建/销毁。
@@ -355,6 +384,8 @@ for i := 0; i < count; i++ {
 | `Model path does not exist` | `ModelPath` 指向了不存在的路径 | 确保路径与内置模型包之一匹配（如 `./models/Pikachu`） |
 | `no session available`（HTTP 服务） | 池内所有 Session 都在忙 | 增大 `POOL_SIZE` 或减少并发请求 |
 | `HERR_INVALID_IMAGE_STREAM_PARAM` | 宽/高/格式不匹配 | 确认 `len(data)` 与所选格式的 `width*height*channels` 一致 |
+| vendor 编译时 `inspireface.h: No such file or directory` | `go mod vendor` 默认不复制头文件目录 | 升级到 v1.0.3+，重新执行 `go mod vendor`；头文件已通过占位 Go 包被正确复制 |
+| vendor 编译时 `cannot find -lInspireFace` | `.so` 文件超过 1 MB，被 `go mod vendor` 跳过 | vendor 后运行 `go run github.com/joy999/go-face/cmd/install-libs`，或将库安装到 `/usr/local/lib` |
 | macOS: `image not found` | `@rpath` 解析失败 | `export DYLD_LIBRARY_PATH=$(pwd)/third_party/inspireface/lib/darwin_arm64` |
 | Linux x86: `cannot open shared object file` | 加载器未识别 `rpath` | `export LD_LIBRARY_PATH=$(pwd)/third_party/inspireface/lib/linux_x86` |
 | Linux aarch64: `cannot open shared object file` | 加载器未识别 `rpath` | `export LD_LIBRARY_PATH=$(pwd)/third_party/inspireface/lib/linux_aarch64_rk3588` |

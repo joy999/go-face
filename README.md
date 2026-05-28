@@ -338,6 +338,35 @@ for i := 0; i < count; i++ {
 | `FormatI420`| YUV I420 | Video codecs |
 | `FormatGRAY`| single channel | IR / depth cameras |
 
+## Vendoring & Native Libraries
+
+`go mod vendor` does **not** copy directories without `.go` files, and it also skips files larger than 1 MB. This means:
+
+- **C headers** under `third_party/inspireface/include/` are omitted by default. We fixed this by turning the header directories into placeholder Go packages so they are vendored correctly (v1.0.3+).
+- **`.so` / `.dylib` files** under `third_party/inspireface/lib/` are **never** vendored because they are several megabytes each.
+
+If you use `go mod vendor`, run the helper after vendoring to download the native libraries:
+
+```bash
+# If you have vendor/ enabled, use -mod=mod so the tool can be fetched
+# (or run from a local clone of go-face)
+go run -mod=mod github.com/joy999/go-face/cmd/install-libs
+
+# If you already have a local clone:
+go run /path/to/go-face/cmd/install-libs
+```
+
+The tool automatically detects whether `go-face` lives in your `vendor/` directory or in the module cache, and extracts `lib.tar.gz` to the correct `third_party/inspireface/lib/` location.
+
+If you prefer a system-wide installation (so the libraries are available for all builds), use:
+
+```bash
+go run github.com/joy999/go-face/cmd/install-libs -system
+sudo ldconfig   # on Linux
+```
+
+> **Note:** If you are behind a firewall or GitHub is unreachable, download [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz) manually and extract it to `third_party/inspireface/lib/` (or `/usr/local/lib` for `-system`).
+
 ## Performance Tips
 
 - **Reuse sessions**. `Session` allocates internal caches and GPU/NPU memory. Create one per goroutine or use a pool; do not create/destroy per request.
@@ -355,6 +384,8 @@ for i := 0; i < count; i++ {
 | `Model path does not exist` | `ModelPath` points to a non-existent path | Ensure the path matches one of the bundled model packs (e.g. `./models/Pikachu`) |
 | `no session available` (HTTP server) | All sessions in pool are busy | Increase `POOL_SIZE` or reduce concurrent requests |
 | `HERR_INVALID_IMAGE_STREAM_PARAM` | Width/height/format mismatch | Verify `len(data)` matches `width*height*channels` for the chosen format |
+| `inspireface.h: No such file or directory` (vendor builds) | `go mod vendor` omits header directories | Upgrade to v1.0.3+, re-run `go mod vendor`; headers are now copied via placeholder packages |
+| `cannot find -lInspireFace` (vendor builds) | `.so` files > 1 MB are skipped by `go mod vendor` | Run `go run github.com/joy999/go-face/cmd/install-libs` after vendoring, or install libs to `/usr/local/lib` |
 | macOS: `image not found` at runtime | `@rpath` resolution failure | `export DYLD_LIBRARY_PATH=$(pwd)/third_party/inspireface/lib/darwin_arm64` |
 | Linux x86: `cannot open shared object file` | `rpath` not honored by loader | `export LD_LIBRARY_PATH=$(pwd)/third_party/inspireface/lib/linux_x86` |
 | Linux aarch64: `cannot open shared object file` | `rpath` not honored by loader | `export LD_LIBRARY_PATH=$(pwd)/third_party/inspireface/lib/linux_aarch64_rk3588` |
