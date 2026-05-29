@@ -371,7 +371,34 @@ sudo ldconfig   # Linux 上需要执行
 
 如果你处于防火墙内或希望完全手动控制，可一次性下载 [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz)，然后自行放置库文件。
 
-**A. Vendor 模式 — 放到 `vendor/github.com/joy999/go-face/` 内**
+**A. 项目根目录 — 放到 `./lib/inspireface/lib/` 下（vendored 项目推荐）**
+
+当 `go-face` 被 vendor 后，编译时也会到项目根目录下查找库：
+
+```bash
+# 1. 在项目根目录创建目标目录
+mkdir -p lib/inspireface/lib
+
+# 2. 解压 lib.tar.gz（包内已按平台子目录归档）
+tar -xzf lib.tar.gz -C lib/inspireface/lib
+```
+
+解压后的目录结构：
+```
+your-project/
+├── lib/
+│   └── inspireface/
+│       └── lib/
+│           ├── darwin_arm64/libInspireFace.dylib
+│           ├── linux_x86/libInspireFace.so
+│           └── linux_aarch64_rk3588/
+│               ├── libInspireFace.so
+│               └── librknnrt.so
+```
+
+当 `go-face` 位于 `vendor/` 内时，CGO 链接标志会自动解析到该路径。
+
+**B. Vendor 模式 — 放到 `vendor/github.com/joy999/go-face/` 内**
 
 ```bash
 # 1. 找到 go-face 在 vendor 中的目录
@@ -384,7 +411,7 @@ mkdir -p "$PKG_DIR/third_party/inspireface/lib"
 tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
 ```
 
-**B. Module-cache 模式 — 放到 `$GOMODCACHE` 中**
+**C. Module-cache 模式 — 放到 `$GOMODCACHE` 中**
 
 ```bash
 # 1. 找到 go-face 在模块缓存中的目录
@@ -396,7 +423,7 @@ echo $PKG_DIR
 tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
 ```
 
-**C. 系统路径安装 — 放到 `/usr/local/lib`（Linux）或 `/usr/lib`**
+**D. 系统路径安装 — 放到 `/usr/local/lib`（Linux）或 `/usr/lib`**
 
 只拷贝当前平台需要的库文件即可：
 
@@ -414,7 +441,7 @@ sudo ldconfig
 
 CGO 中已添加的 `-L/usr/local/lib` 兜底路径（v1.0.3+）会自动找到这些库。
 
-**D. 从本地 `replace` 的 clone 中复制**
+**E. 从本地 `replace` 的 clone 中复制**
 
 如果你使用了 `replace github.com/joy999/go-face => /path/to/local/go-face`，本地仓库中的 `.so` 文件已经是真实内容（不是 LFS 指针），可直接复制：
 

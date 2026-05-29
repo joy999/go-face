@@ -371,7 +371,34 @@ sudo ldconfig   # on Linux
 
 If you are behind a firewall or prefer full manual control, download [`lib.tar.gz`](https://github.com/joy999/go-face/releases/download/init/lib.tar.gz) once and place the libraries yourself.
 
-**A. Vendor mode — place inside `vendor/github.com/joy999/go-face/`**
+**A. Project root — place in `./lib/inspireface/lib/` (recommended for vendored projects)**
+
+When `go-face` is vendored, it also looks for libraries under your project root:
+
+```bash
+# 1. In your project root, create the target directory
+mkdir -p lib/inspireface/lib
+
+# 2. Extract lib.tar.gz (archived with platform sub-directories)
+tar -xzf lib.tar.gz -C lib/inspireface/lib
+```
+
+Resulting layout:
+```
+your-project/
+├── lib/
+│   └── inspireface/
+│       └── lib/
+│           ├── darwin_arm64/libInspireFace.dylib
+│           ├── linux_x86/libInspireFace.so
+│           └── linux_aarch64_rk3588/
+│               ├── libInspireFace.so
+│               └── librknnrt.so
+```
+
+This path is automatically resolved by the CGO linker flags when `go-face` lives inside `vendor/`.
+
+**B. Vendor mode — place inside `vendor/github.com/joy999/go-face/`**
 
 ```bash
 # 1. Find the vendored package directory
@@ -384,7 +411,7 @@ mkdir -p "$PKG_DIR/third_party/inspireface/lib"
 tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
 ```
 
-**B. Module-cache mode — place inside `$GOMODCACHE`**
+**C. Module-cache mode — place inside `$GOMODCACHE`**
 
 ```bash
 # 1. Find the module-cache directory for go-face
@@ -396,7 +423,7 @@ echo $PKG_DIR
 tar -xzf lib.tar.gz -C "$PKG_DIR/third_party/inspireface/lib"
 ```
 
-**C. System-wide installation — place in `/usr/local/lib` (Linux) or `/usr/lib`**
+**D. System-wide installation — place in `/usr/local/lib` (Linux) or `/usr/lib`**
 
 Copy only the libraries for your current platform:
 
@@ -414,7 +441,7 @@ sudo ldconfig
 
 Then the CGO `-L/usr/local/lib` fallback (already added in v1.0.3+) will pick them up automatically.
 
-**D. From a local `replace` clone**
+**E. From a local `replace` clone**
 
 If you use `replace github.com/joy999/go-face => /path/to/local/go-face`, the local clone already contains the real `.so` files (not LFS pointers). You can simply copy them:
 
